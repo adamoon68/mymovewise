@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:csv/csv.dart';
 import 'package:mymovewiseapp/user.dart';
-import 'package:mymovewiseapp/myconfig.dart';
 import 'package:mymovewiseapp/loginpage.dart';
+import 'package:mymovewiseapp/admin_exercise_detail_page.dart';
 
 class AdminDashboard extends StatefulWidget {
   final User user;
@@ -14,67 +14,80 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
-  List exercises = [];
+  List<List<dynamic>> _allExercises = [];
+  List<Map<String, String>> _displayList = [];
+  TextEditingController searchController = TextEditingController();
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    loadExercises();
+    loadCsvData();
   }
 
-  void loadExercises() {
-    http
-        .get(
-          Uri.parse("${MyConfig.baseUrl}/mymovewise/backend/get_exercises.php"),
-        )
-        .then((response) {
-          if (response.statusCode == 200) {
-            var res = jsonDecode(response.body);
-            if (res['status'] == 'success') {
-              setState(() => exercises = res['data']);
-            }
-          }
+  void loadCsvData() async {
+    try {
+      final rawData = await rootBundle.loadString("assets/megaGymDataset.csv");
+      List<List<dynamic>> csvTable = const CsvToListConverter().convert(rawData);
+      _allExercises = csvTable;
+      
+      List<Map<String, String>> initialList = [];
+      for (var i = 1; i < _allExercises.length; i++) {
+        var row = _allExercises[i];
+        initialList.add({
+          "name": row[1].toString(),
+          "desc": row[2].toString(),
+          "type": row[3].toString(),
+          "level": row[6].toString(),
         });
+      }
+      // Sort A-Z
+      initialList.sort((a, b) => a['name']!.compareTo(b['name']!));
+
+      setState(() {
+        _displayList = initialList;
+        isLoading = false;
+      });
+    } catch (e) {
+      print("Error loading CSV: $e");
+      setState(() => isLoading = false);
+    }
   }
 
-  void uploadExercise(String name, String type) {
-    http
-        .post(
-          Uri.parse(
-            "${MyConfig.baseUrl}/mymovewise/backend/upload_exercise.php",
-          ),
-          body: {
-            "name": name,
-            "description": "Standard instruction",
-            "type": type,
-            "tags": "General", // Default tag
-          },
-        )
-        .then((_) {
-          Navigator.pop(context);
-          loadExercises();
-        });
-  }
+  void filterSearch(String query) {
+    List<Map<String, String>> results = [];
+    if (query.isEmpty) {
+      results = _allExercises.skip(1).map((row) => {
+        "name": row[1].toString(),
+        "desc": row[2].toString(),
+        "type": row[3].toString(),
+        "level": row[6].toString(),
+      }).toList().cast<Map<String, String>>();
+    } else {
+      var fullList = _allExercises.skip(1).map((row) => {
+        "name": row[1].toString(),
+        "desc": row[2].toString(),
+        "type": row[3].toString(),
+        "level": row[6].toString(),
+      }).toList().cast<Map<String, String>>();
 
-  void tagExercise(String id, String tag) {
-    http
-        .post(
-          Uri.parse("${MyConfig.baseUrl}/mymovewise/backend/tag_exercise.php"),
-          body: {"exercise_id": id, "new_tag": tag},
-        )
-        .then((_) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("Tagged as $tag")));
-          loadExercises();
-        });
+      results = fullList
+          .where((item) => item['name']!.toLowerCase().contains(query.toLowerCase()))
+          .toList();
+    }
+    results.sort((a, b) => a['name']!.compareTo(b['name']!));
+    setState(() => _displayList = results);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text("Admin Dashboard"),
+        title: const Text("Admin Panel"),
+        backgroundColor: Colors.blueAccent,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -87,59 +100,75 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
       body: Column(
         children: [
-          Padding(
+          // --- Search Bar ---
+          Container(
             padding: const EdgeInsets.all(16),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text("Upload New Exercise"),
-              onPressed: () {
-                TextEditingController nameCtrl = TextEditingController();
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text("Add Exercise"),
-                    content: TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(labelText: "Name"),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () =>
-                            uploadExercise(nameCtrl.text, "Strength"),
-                        child: const Text("Upload"),
-                      ),
-                    ],
-                  ),
-                );
-              },
+            decoration: const BoxDecoration(
+              color: Colors.blueAccent,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+            child: TextField(
+              controller: searchController,
+              onChanged: filterSearch,
+              decoration: InputDecoration(
+                hintText: "Search Database...",
+                prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
             ),
           ),
+          
+          // --- List Content ---
           Expanded(
-            child: ListView.builder(
-              itemCount: exercises.length,
-              itemBuilder: (context, index) {
-                return Card(
-                  child: ListTile(
-                    title: Text(exercises[index]['name']),
-                    subtitle: Text("Tags: ${exercises[index]['tags']}"),
-                    trailing: PopupMenuButton(
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: "Low Impact",
-                          child: Text("Tag: Low Impact"),
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _displayList.length,
+                    itemBuilder: (context, index) {
+                      return Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.grey[100],
+                            child: const Icon(Icons.edit, color: Colors.blueAccent),
+                          ),
+                          title: Text(
+                            _displayList[index]['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            "${_displayList[index]['type']} • ${_displayList[index]['level']}",
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                          trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AdminExerciseDetailPage(
+                                  exercise: _displayList[index],
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        const PopupMenuItem(
-                          value: "High Impact",
-                          child: Text("Tag: High Impact"),
-                        ),
-                      ],
-                      onSelected: (val) =>
-                          tagExercise(exercises[index]['id'], val),
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),

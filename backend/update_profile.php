@@ -10,11 +10,17 @@ include_once("config.php");
 $user_id = $_POST['user_id'];
 $name = $_POST['name'];
 $phone = $_POST['phone'];
-$condition = $_POST['chronic_condition']; // The most important field for this app
+$condition = $_POST['chronic_condition'];
+$password = $_POST['password'];
 
-$sqlupdate = "UPDATE tbl_users SET user_name = '$name', user_phone = '$phone', chronic_condition = '$condition' WHERE user_id = '$user_id'";
+// If password is provided, update it. If empty, keep old password.
+if (!empty($password)) {
+    $sql = "UPDATE tbl_users SET user_name = '$name', user_phone = '$phone', chronic_condition = '$condition', user_password = '$password' WHERE user_id = '$user_id'";
+} else {
+    $sql = "UPDATE tbl_users SET user_name = '$name', user_phone = '$phone', chronic_condition = '$condition' WHERE user_id = '$user_id'";
+}
 
-if ($conn->query($sqlupdate) === TRUE) {
+if ($conn->query($sql) === TRUE) {
     $response = array('status' => 'success', 'data' => null);
     sendJsonResponse($response);
 } else {
