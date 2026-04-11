@@ -16,9 +16,9 @@ class MainApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         // Keeping the PawPal brown styling as requested
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.brown),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.brown,
+          backgroundColor: Colors.blueAccent,
           foregroundColor: Colors.white,
         ),
       ),
@@ -26,4 +26,3 @@ class MainApp extends StatelessWidget {
     );
   }
 }
-

@@ -4,6 +4,7 @@ import 'package:mymovewiseapp/loginpage.dart';
 import 'package:mymovewiseapp/workout_plan_page.dart';
 import 'package:mymovewiseapp/history_page.dart';
 import 'package:mymovewiseapp/profile_page.dart';
+import 'package:mymovewiseapp/ai_chat_page.dart';
 
 class HomePage extends StatefulWidget {
   final User user;
@@ -14,7 +15,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Default values
+  // --- Manual Selection Values ---
   String selectedEnergy = "Medium";
   String selectedTime = "30 mins";
   String selectedEquipment = "None";
@@ -37,7 +38,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Light, clean background
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text("My MoveWise"),
         backgroundColor: Colors.blueAccent,
@@ -54,6 +55,7 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // --- ORIGINAL SELECTION SECTION ---
                   const Text(
                     "Customize Your Session",
                     style: TextStyle(
@@ -64,7 +66,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 15),
 
-                  // --- SELECTION CARDS ---
                   _buildSelectionCard(
                     icon: Icons.battery_charging_full,
                     color: Colors.orange,
@@ -93,7 +94,7 @@ class _HomePageState extends State<HomePage> {
 
                   const SizedBox(height: 30),
 
-                  // --- ACTION BUTTON ---
+                  // Action Button
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -125,7 +126,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // --- HELPER WIDGETS ---
+  // --- REUSED HELPER WIDGETS ---
 
   Widget _buildHeader() {
     return Container(
@@ -142,7 +143,7 @@ class _HomePageState extends State<HomePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Hello, ${widget.user.name?.split(' ')[0] ?? 'User'}!", // Grabs first name
+            "Hello, ${widget.user.name?.split(' ')[0] ?? 'User'}!",
             style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -175,7 +176,7 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -186,7 +187,7 @@ class _HomePageState extends State<HomePage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 24),
@@ -250,6 +251,19 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           ListTile(
+            leading: const Icon(Icons.smart_toy, color: Colors.blueAccent),
+            title: const Text("Chat with MoveWise AI"),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AIChatPage(user: widget.user),
+                ),
+              );
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.history, color: Colors.blueAccent),
             title: const Text("Workout History"),
             onTap: () {
@@ -266,7 +280,7 @@ class _HomePageState extends State<HomePage> {
             leading: const Icon(Icons.person, color: Colors.blueAccent),
             title: const Text("My Profile"),
             onTap: () {
-              Navigator.pop(context); // Close drawer
+              Navigator.pop(context);
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -280,7 +294,6 @@ class _HomePageState extends State<HomePage> {
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text("Logout", style: TextStyle(color: Colors.red)),
             onTap: () {
-              // Clear stack and go to login
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (_) => const LoginPage()),
