@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
-import 'package:csv/csv.dart';
+import 'package:mymovewiseapp/exercise_data_service.dart';
 import 'package:mymovewiseapp/user.dart';
 import 'package:mymovewiseapp/exercise_detail_page.dart';
 
@@ -23,8 +22,10 @@ class WorkoutPlanPage extends StatefulWidget {
 }
 
 class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
-  List<List<dynamic>> _allExercises = [];
+  List<Map<String, String>> _allExercises = [];
+  List<Map<String, String>> _fullGeneratedPlan = [];
   List<Map<String, String>> generatedPlan = [];
+  String _selectedLetter = 'All';
   bool isLoading = true;
 
   @override
@@ -35,45 +36,35 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
 
   void loadCsvData() async {
     try {
-      // Load the file
-      final rawData = await rootBundle.loadString("assets/megaGymDataset.csv");
-      
-      // Convert with explicit EOL (Fix for Linux)
-      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
-        rawData,
-        eol: '\n',                 // <--- THE FIX
-        shouldParseNumbers: false, // Prevents errors if text looks like numbers
+      final exercises = await ExerciseDataService.loadExercises(
+        sortAlphabetically: true,
       );
-      
-      if (mounted) {
-        setState(() {
-          _allExercises = csvTable;
-        });
-        generateWorkout();
-      }
+      if (!mounted) return;
+      setState(() {
+        _allExercises = exercises;
+      });
+      generateWorkout();
     } catch (e) {
       print("Error loading CSV in Workout Plan: $e");
       setState(() => isLoading = false);
     }
   }
-  
+
   void generateWorkout() {
     List<Map<String, String>> tempPlan = [];
-    
+
     bool isBeginner = widget.energyLevel == "Low";
     bool isIntermediate = widget.energyLevel == "Medium";
-    
-    // Skip header row
-    for (var i = 1; i < _allExercises.length; i++) {
-      var row = _allExercises[i];
-      
-      String name = row[1].toString();
-      String type = row[3].toString();
-      String equip = row[5].toString();
-      String level = row[6].toString();
+
+    for (final exercise in _allExercises) {
+      final name = exercise['name'] ?? '';
+      final type = exercise['type'] ?? '';
+      final equip = exercise['equipment'] ?? '';
+      final level = exercise['level'] ?? '';
 
       // 1. Safety Filter
-      if (widget.user.chronicCondition != "None" && widget.user.chronicCondition != null) {
+      if (widget.user.chronicCondition != "None" &&
+          widget.user.chronicCondition != null) {
         if (type == "Plyometrics" || type == "Olympic Weightlifting") continue;
       }
 
@@ -84,7 +75,7 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
       } else if (widget.equipment == "Dumbbells") {
         if (equip == "Body Only" || equip == "Dumbbell") equipMatch = true;
       } else {
-        equipMatch = true; 
+        equipMatch = true;
       }
 
       // 3. Level Filter
@@ -94,27 +85,51 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
       } else if (isIntermediate) {
         if (level == "Beginner" || level == "Intermediate") levelMatch = true;
       } else {
-        levelMatch = true; 
+        levelMatch = true;
       }
 
       if (equipMatch && levelMatch) {
         tempPlan.add({
           "name": name,
           "details": "$type | $equip",
-          "desc": row[2].toString(),
+          "desc": exercise['desc'] ?? '',
           "type": type,
-          "bodyPart": row[4].toString(),
+          "bodyPart": exercise['bodyPart'] ?? '',
           "level": level,
         });
       }
     }
 
-    tempPlan.shuffle();
-    int limit = widget.duration == "15 mins" ? 4 : (widget.duration == "30 mins" ? 6 : 10);
-    
+    tempPlan.sort(
+      (a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()),
+    );
+    int limit = widget.duration == "15 mins"
+        ? 4
+        : (widget.duration == "30 mins" ? 6 : 10);
+
+    final sortedPlan = tempPlan.take(limit).toList();
+
     setState(() {
-      generatedPlan = tempPlan.take(limit).toList();
+      _fullGeneratedPlan = sortedPlan;
+      _selectedLetter = 'All';
+      generatedPlan = sortedPlan;
       isLoading = false;
+    });
+  }
+
+  void _filterGeneratedPlanByLetter(String letter) {
+    final filtered = letter == 'All'
+        ? List<Map<String, String>>.from(_fullGeneratedPlan)
+        : _fullGeneratedPlan
+              .where(
+                (exercise) =>
+                    exercise['name']!.toUpperCase().startsWith(letter),
+              )
+              .toList();
+
+    setState(() {
+      _selectedLetter = letter;
+      generatedPlan = filtered;
     });
   }
 
@@ -156,15 +171,41 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.health_and_safety, color: Colors.amber[900], size: 20),
+                        Icon(
+                          Icons.health_and_safety,
+                          color: Colors.amber[900],
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           "Safety Filters Active: ${widget.user.chronicCondition}",
-                          style: TextStyle(color: Colors.amber[900], fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.amber[900],
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
                   ),
+
+                SizedBox(
+                  height: 58,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    children: [
+                      _buildLetterChip('All'),
+                      ...List.generate(
+                        26,
+                        (index) =>
+                            _buildLetterChip(String.fromCharCode(65 + index)),
+                      ),
+                    ],
+                  ),
+                ),
 
                 // --- Exercise List ---
                 Expanded(
@@ -181,7 +222,7 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
                                 borderRadius: BorderRadius.circular(15),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.grey.withOpacity(0.08),
+                                    color: Colors.grey.withValues(alpha: 0.08),
                                     blurRadius: 10,
                                     offset: const Offset(0, 4),
                                   ),
@@ -191,15 +232,23 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
                                 contentPadding: const EdgeInsets.all(16),
                                 leading: CircleAvatar(
                                   radius: 25,
-                                  backgroundColor: Colors.blueAccent.withOpacity(0.1),
+                                  backgroundColor: Colors.blueAccent.withValues(
+                                    alpha: 0.1,
+                                  ),
                                   child: Text(
                                     "${index + 1}",
-                                    style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                      color: Colors.blueAccent,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                                 title: Text(
                                   generatedPlan[index]['name']!,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
                                 ),
                                 subtitle: Padding(
                                   padding: const EdgeInsets.only(top: 6),
@@ -209,12 +258,19 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
                                       const SizedBox(width: 8),
                                       Text(
                                         generatedPlan[index]['bodyPart'] ?? "",
-                                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                                trailing: const Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: Colors.grey,
+                                ),
                                 onTap: () {
                                   Navigator.push(
                                     context,
@@ -241,7 +297,13 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
       children: [
         Icon(icon, color: Colors.white70, size: 20),
         const SizedBox(height: 4),
-        Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ],
     );
   }
@@ -254,12 +316,36 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLetterChip(String letter) {
+    final isSelected = _selectedLetter == letter;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(letter),
+        selected: isSelected,
+        onSelected: (_) => _filterGeneratedPlanByLetter(letter),
+        selectedColor: Colors.blueAccent,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.blueAccent,
+          fontWeight: FontWeight.w600,
+        ),
+        backgroundColor: Colors.white,
+        side: const BorderSide(color: Colors.blueAccent),
       ),
     );
   }

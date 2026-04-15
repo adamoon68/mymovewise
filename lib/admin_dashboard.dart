@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
-import 'package:csv/csv.dart';
+import 'package:mymovewiseapp/admin_user_management_page.dart';
+import 'package:mymovewiseapp/exercise_data_service.dart';
 import 'package:mymovewiseapp/user.dart';
 import 'package:mymovewiseapp/loginpage.dart';
 import 'package:mymovewiseapp/admin_exercise_detail_page.dart';
@@ -14,9 +14,10 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
-  List<List<dynamic>> _allExercises = [];
+  List<Map<String, String>> _allExerciseMaps = [];
   List<Map<String, String>> _displayList = [];
   TextEditingController searchController = TextEditingController();
+  String _selectedLetter = 'All';
   bool isLoading = true;
 
   @override
@@ -26,40 +27,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   void loadCsvData() async {
+    if (mounted) {
+      setState(() => isLoading = true);
+    }
     try {
-      // 1. Ensure this filename matches EXACTLY what is on your hard drive.
-      // If your file is "MegaGymDataset.csv", change it here!
-      final rawData = await rootBundle.loadString("assets/megaGymDataset.csv");
-      
-      // 2. Use the 'eol' parameter to handle Linux line endings correctly
-      List<List<dynamic>> csvTable = const CsvToListConverter().convert(
-        rawData, 
-        eol: '\n',
-        shouldParseNumbers: false
+      final initialList = await ExerciseDataService.loadExercises(
+        sortAlphabetically: true,
       );
-      
-      _allExercises = csvTable;
-      
-      List<Map<String, String>> initialList = [];
-      // Skip header row
-      for (var i = 1; i < _allExercises.length; i++) {
-        var row = _allExercises[i];
-        initialList.add({
-          "name": row[1].toString(),
-          "desc": row[2].toString(),
-          "type": row[3].toString(),
-          "level": row[6].toString(),
-        });
-      }
-      
-      initialList.sort((a, b) => a['name']!.compareTo(b['name']!));
-
-      if (mounted) {
-        setState(() {
-          _displayList = initialList;
-          isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _allExerciseMaps = initialList;
+        isLoading = false;
+      });
+      _applyFilters(query: searchController.text, letter: _selectedLetter);
     } catch (e) {
       print("Error loading CSV in Admin: $e");
       setState(() => isLoading = false);
@@ -67,28 +47,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   void filterSearch(String query) {
-    List<Map<String, String>> results = [];
-    if (query.isEmpty) {
-      results = _allExercises.skip(1).map((row) => {
-        "name": row[1].toString(),
-        "desc": row[2].toString(),
-        "type": row[3].toString(),
-        "level": row[6].toString(),
-      }).toList().cast<Map<String, String>>();
-    } else {
-      var fullList = _allExercises.skip(1).map((row) => {
-        "name": row[1].toString(),
-        "desc": row[2].toString(),
-        "type": row[3].toString(),
-        "level": row[6].toString(),
-      }).toList().cast<Map<String, String>>();
+    _applyFilters(query: query, letter: _selectedLetter);
+  }
 
-      results = fullList
-          .where((item) => item['name']!.toLowerCase().contains(query.toLowerCase()))
-          .toList();
-    }
-    results.sort((a, b) => a['name']!.compareTo(b['name']!));
-    setState(() => _displayList = results);
+  void _applyFilters({String? query, String? letter}) {
+    final activeQuery = query ?? searchController.text;
+    final activeLetter = letter ?? _selectedLetter;
+
+    final results = _allExerciseMaps.where((item) {
+      final name = item['name'] ?? '';
+      final matchesQuery =
+          activeQuery.isEmpty ||
+          name.toLowerCase().contains(activeQuery.toLowerCase());
+      final matchesLetter =
+          activeLetter == 'All' || name.toUpperCase().startsWith(activeLetter);
+      return matchesQuery && matchesLetter;
+    }).toList();
+
+    setState(() {
+      _selectedLetter = activeLetter;
+      _displayList = results;
+    });
   }
 
   @override
@@ -110,11 +89,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
         ],
       ),
+      drawer: _buildDrawer(),
       body: Column(
         children: [
           // --- Search Bar ---
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             decoration: const BoxDecoration(
               color: Colors.blueAccent,
               borderRadius: BorderRadius.only(
@@ -138,7 +118,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             ),
           ),
-          
+
+          SizedBox(
+            height: 58,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              children: [
+                _buildLetterChip('All'),
+                ...List.generate(
+                  26,
+                  (index) => _buildLetterChip(String.fromCharCode(65 + index)),
+                ),
+              ],
+            ),
+          ),
+
           // --- List Content ---
           Expanded(
             child: isLoading
@@ -149,12 +144,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     itemBuilder: (context, index) {
                       return Card(
                         elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         margin: const EdgeInsets.only(bottom: 10),
                         child: ListTile(
                           leading: CircleAvatar(
                             backgroundColor: Colors.grey[100],
-                            child: const Icon(Icons.edit, color: Colors.blueAccent),
+                            child: const Icon(
+                              Icons.edit,
+                              color: Colors.blueAccent,
+                            ),
                           ),
                           title: Text(
                             _displayList[index]['name']!,
@@ -166,7 +166,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             "${_displayList[index]['type']} • ${_displayList[index]['level']}",
                             style: TextStyle(color: Colors.grey[600]),
                           ),
-                          trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                          trailing: const Icon(
+                            Icons.arrow_forward_ios,
+                            size: 14,
+                            color: Colors.grey,
+                          ),
                           onTap: () {
                             Navigator.push(
                               context,
@@ -175,7 +179,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   exercise: _displayList[index],
                                 ),
                               ),
-                            );
+                            ).then((_) => loadCsvData());
                           },
                         ),
                       );
@@ -183,6 +187,86 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            decoration: const BoxDecoration(color: Colors.blueAccent),
+            accountName: Text(
+              widget.user.name ?? "Admin",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            accountEmail: Text(widget.user.email ?? ""),
+            currentAccountPicture: const CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Icon(
+                Icons.admin_panel_settings,
+                color: Colors.blueAccent,
+                size: 38,
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.people_alt, color: Colors.blueAccent),
+            title: const Text("Manage User Profiles"),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      AdminUserManagementPage(adminUser: widget.user),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.refresh, color: Colors.blueAccent),
+            title: const Text("Refresh Workouts"),
+            onTap: () {
+              Navigator.pop(context);
+              loadCsvData();
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text("Logout", style: TextStyle(color: Colors.red)),
+            onTap: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+                (route) => false,
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLetterChip(String letter) {
+    final isSelected = _selectedLetter == letter;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(letter),
+        selected: isSelected,
+        onSelected: (_) => _applyFilters(letter: letter),
+        selectedColor: Colors.white,
+        backgroundColor: Colors.blueAccent,
+        side: const BorderSide(color: Colors.white),
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.blueAccent : Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

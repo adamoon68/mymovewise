@@ -9,7 +9,8 @@ class AdminExerciseDetailPage extends StatefulWidget {
   const AdminExerciseDetailPage({super.key, required this.exercise});
 
   @override
-  State<AdminExerciseDetailPage> createState() => _AdminExerciseDetailPageState();
+  State<AdminExerciseDetailPage> createState() =>
+      _AdminExerciseDetailPageState();
 }
 
 class _AdminExerciseDetailPageState extends State<AdminExerciseDetailPage> {
@@ -24,14 +25,16 @@ class _AdminExerciseDetailPageState extends State<AdminExerciseDetailPage> {
     // 1. Initialize with CSV data
     descController.text = widget.exercise['desc'] ?? "";
     selectedIntensity = widget.exercise['level'] ?? "Beginner";
-    
+
     // 2. Fetch DB Overrides
     fetchCurrentData();
   }
 
   void fetchCurrentData() async {
     String name = widget.exercise['name']!;
-    var url = Uri.parse("${MyConfig.baseUrl}/mymovewise/backend/get_desc.php?name=${Uri.encodeComponent(name)}");
+    var url = Uri.parse(
+      "${MyConfig.baseUrl}/mymovewise/backend/get_desc.php?name=${Uri.encodeComponent(name)}",
+    );
     var response = await http.get(url);
 
     if (response.statusCode == 200) {
@@ -44,7 +47,8 @@ class _AdminExerciseDetailPageState extends State<AdminExerciseDetailPage> {
           if (res['video_link'] != null) {
             videoController.text = res['video_link'];
           }
-          if (res['difficulty'] != null && res['difficulty'].toString().isNotEmpty) {
+          if (res['difficulty'] != null &&
+              res['difficulty'].toString().isNotEmpty) {
             selectedIntensity = res['difficulty'];
           }
         });
@@ -53,9 +57,11 @@ class _AdminExerciseDetailPageState extends State<AdminExerciseDetailPage> {
     setState(() => isLoading = false);
   }
 
-  void saveChanges() {
-    http.post(
-      Uri.parse("${MyConfig.baseUrl}/mymovewise/backend/admin_update_exercise.php"),
+  Future<void> saveChanges() async {
+    final response = await http.post(
+      Uri.parse(
+        "${MyConfig.baseUrl}/mymovewise/backend/admin_update_exercise.php",
+      ),
       body: {
         "name": widget.exercise['name'],
         "type": widget.exercise['type'] ?? "General",
@@ -63,86 +69,175 @@ class _AdminExerciseDetailPageState extends State<AdminExerciseDetailPage> {
         "video_link": videoController.text,
         "difficulty": selectedIntensity,
       },
-    ).then((response) {
-      if (response.statusCode == 200) {
-        var res = jsonDecode(response.body);
-        if (res['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Exercise Updated Successfully!")));
-          Navigator.pop(context);
-        } else {
-           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: ${res['error']}")));
-        }
+    );
+
+    if (!mounted) return;
+
+    if (response.statusCode == 200) {
+      final res = jsonDecode(response.body);
+      if (res['status'] == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Exercise Updated Successfully!")),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: ${res['error']}")));
       }
-    });
+    }
+  }
+
+  Future<void> deleteExercise() async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Delete Workout"),
+        content: Text(
+          "Remove ${widget.exercise['name']} from the workout dataset across the app?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("Delete", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    if (shouldDelete != true) return;
+
+    final response = await http.post(
+      Uri.parse(
+        "${MyConfig.baseUrl}/mymovewise/backend/delete_dataset_exercise.php",
+      ),
+      body: {"name": widget.exercise['name']},
+    );
+
+    if (!mounted) return;
+
+    if (response.statusCode == 200) {
+      final res = jsonDecode(response.body);
+      if (res['status'] == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Workout deleted successfully.")),
+        );
+        Navigator.pop(context, true);
+        return;
+      }
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Unable to delete this workout.")),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Edit Exercise (Admin)")),
-      body: isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Editing: ${widget.exercise['name']}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const Divider(),
-              const SizedBox(height: 10),
-
-              // 1. INTENSITY SELECTOR
-              const Text("Set Intensity Level:", style: TextStyle(fontWeight: FontWeight.bold)),
-              DropdownButton<String>(
-                value: ["Beginner", "Intermediate", "Expert"].contains(selectedIntensity) ? selectedIntensity : "Beginner",
-                isExpanded: true,
-                items: ["Beginner", "Intermediate", "Expert"].map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
-                onChanged: (newValue) => setState(() => selectedIntensity = newValue!),
-              ),
-              const SizedBox(height: 20),
-
-              // 2. VIDEO LINK INPUT
-              const Text("YouTube Video Link (Optional):", style: TextStyle(fontWeight: FontWeight.bold)),
-              TextField(
-                controller: videoController,
-                decoration: const InputDecoration(
-                  hintText: "https://www.youtube.com/watch?v=...",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // 3. DESCRIPTION EDITOR
-              const Text("Description / Instructions:", style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 5),
-              TextField(
-                controller: descController,
-                maxLines: 8,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: "Enter step-by-step instructions...",
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              // 4. SAVE BUTTON (No "Complete Workout" button here)
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.save),
-                  label: const Text("Save Changes"),
-                  onPressed: saveChanges,
-                ),
-              ),
-            ],
+      appBar: AppBar(
+        title: const Text("Edit Exercise (Admin)"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: deleteExercise,
           ),
-        ),
+        ],
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Editing: ${widget.exercise['name']}",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 10),
+
+                  // 1. INTENSITY SELECTOR
+                  const Text(
+                    "Set Intensity Level:",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  DropdownButton<String>(
+                    value:
+                        [
+                          "Beginner",
+                          "Intermediate",
+                          "Expert",
+                        ].contains(selectedIntensity)
+                        ? selectedIntensity
+                        : "Beginner",
+                    isExpanded: true,
+                    items: ["Beginner", "Intermediate", "Expert"].map((
+                      String value,
+                    ) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) =>
+                        setState(() => selectedIntensity = newValue!),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 2. VIDEO LINK INPUT
+                  const Text(
+                    "YouTube Video Link (Optional):",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  TextField(
+                    controller: videoController,
+                    decoration: const InputDecoration(
+                      hintText: "https://www.youtube.com/watch?v=...",
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 3. DESCRIPTION EDITOR
+                  const Text(
+                    "Description / Instructions:",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 5),
+                  TextField(
+                    controller: descController,
+                    maxLines: 8,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: "Enter step-by-step instructions...",
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+
+                  // 4. SAVE BUTTON (No "Complete Workout" button here)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.save),
+                      label: const Text("Save Changes"),
+                      onPressed: saveChanges,
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }

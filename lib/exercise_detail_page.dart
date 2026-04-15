@@ -38,8 +38,10 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
 
   void fetchRemoteData() async {
     String name = widget.exercise['name']!;
-    var url = Uri.parse("${MyConfig.baseUrl}/mymovewise/backend/get_desc.php?name=${Uri.encodeComponent(name)}");
-    
+    var url = Uri.parse(
+      "${MyConfig.baseUrl}/mymovewise/backend/get_desc.php?name=${Uri.encodeComponent(name)}",
+    );
+
     try {
       var response = await http.get(url);
       if (response.statusCode == 200) {
@@ -49,10 +51,12 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
             if (res['desc'] != null && res['desc'].toString().isNotEmpty) {
               displayDesc = res['desc'];
             }
-            if (res['difficulty'] != null && res['difficulty'].toString().isNotEmpty) {
+            if (res['difficulty'] != null &&
+                res['difficulty'].toString().isNotEmpty) {
               displayLevel = res['difficulty'];
             }
-            if (res['video_link'] != null && res['video_link'].toString().isNotEmpty) {
+            if (res['video_link'] != null &&
+                res['video_link'].toString().isNotEmpty) {
               customVideoLink = res['video_link'];
             }
           });
@@ -65,24 +69,26 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
   }
 
   void markExerciseComplete() {
-    http.post(
-      Uri.parse("${MyConfig.baseUrl}/mymovewise/backend/save_workout.php"),
-      body: {
-        "user_id": widget.user.id,
-        "exercise_name": widget.exercise['name'],
-        "type": widget.exercise['type'] ?? "Strength",
-      },
-    ).then((response) {
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Great job! Saved to history."),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    });
+    http
+        .post(
+          Uri.parse("${MyConfig.baseUrl}/mymovewise/backend/save_workout.php"),
+          body: {
+            "user_id": widget.user.id,
+            "exercise_name": widget.exercise['name'],
+            "type": widget.exercise['type'] ?? "Strength",
+          },
+        )
+        .then((response) {
+          if (response.statusCode == 200) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Great job! Saved to history."),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        });
   }
 
   void openVideo() {
@@ -104,7 +110,8 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ExerciseVideoPage(exerciseName: widget.exercise['name']!),
+          builder: (_) =>
+              ExerciseVideoPage(exerciseName: widget.exercise['name']!),
         ),
       );
     }
@@ -143,7 +150,11 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
                       color: Colors.white,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.fitness_center, size: 50, color: Colors.blueAccent),
+                    child: const Icon(
+                      Icons.fitness_center,
+                      size: 50,
+                      color: Colors.blueAccent,
+                    ),
                   ),
                   const SizedBox(height: 15),
                   Padding(
@@ -151,13 +162,17 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
                     child: Text(
                       displayName,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            
+
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -167,7 +182,10 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildInfoChip(Icons.flash_on, widget.exercise['type'] ?? "General"),
+                      _buildInfoChip(
+                        Icons.flash_on,
+                        widget.exercise['type'] ?? "General",
+                      ),
                       const SizedBox(width: 10),
                       _buildInfoChip(Icons.bar_chart, displayLevel),
                     ],
@@ -175,7 +193,10 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
                   const SizedBox(height: 30),
 
                   // --- Description Box ---
-                  const Text("Instructions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Instructions",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.all(20),
@@ -193,7 +214,11 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
                     ),
                     child: Text(
                       displayDesc,
-                      style: TextStyle(fontSize: 16, height: 1.6, color: Colors.grey[800]),
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.6,
+                        color: Colors.grey[800],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -213,28 +238,44 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
                     width: double.infinity,
                     height: 55,
                     child: OutlinedButton.icon(
-                      icon: const Icon(Icons.play_circle_fill, color: Colors.red),
-                      label: const Text("Watch Video Tutorial", style: TextStyle(fontSize: 16)),
+                      icon: const Icon(
+                        Icons.play_circle_fill,
+                        color: Colors.red,
+                      ),
+                      label: const Text(
+                        "Watch Video Tutorial",
+                        style: TextStyle(fontSize: 16),
+                      ),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Colors.red, width: 1.5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       onPressed: openVideo,
                     ),
                   ),
                   const SizedBox(height: 15),
-                  
+
                   SizedBox(
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.check_circle),
-                      label: const Text("Complete & Save to History", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      label: const Text(
+                        "Start Exercise & Save to History",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                         elevation: 5,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       onPressed: markExerciseComplete,
                     ),
@@ -260,7 +301,13 @@ class _ExerciseDetailPageState extends State<ExerciseDetailPage> {
         children: [
           Icon(icon, size: 16, color: Colors.grey[600]),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[800],
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

@@ -1,7 +1,6 @@
-import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:mymovewiseapp/ai_service.dart';
+import 'package:mymovewiseapp/exercise_data_service.dart';
 import 'package:mymovewiseapp/exercise_detail_page.dart';
 import 'package:mymovewiseapp/user.dart';
 
@@ -48,25 +47,9 @@ class _AIChatPageState extends State<AIChatPage> {
 
   Future<void> _loadExercises() async {
     try {
-      final rawData = await rootBundle.loadString("assets/megaGymDataset.csv");
-      final csvTable = const CsvToListConverter().convert(
-        rawData,
-        eol: '\n',
-        shouldParseNumbers: false,
+      final exercises = await ExerciseDataService.loadExercises(
+        sortAlphabetically: true,
       );
-
-      final exercises = <Map<String, String>>[];
-      for (var i = 1; i < csvTable.length; i++) {
-        final row = csvTable[i];
-        exercises.add({
-          "name": row[1].toString(),
-          "desc": row[2].toString(),
-          "type": row[3].toString(),
-          "bodyPart": row[4].toString(),
-          "equipment": row[5].toString(),
-          "level": row[6].toString(),
-        });
-      }
 
       if (!mounted) return;
       setState(() {

@@ -5,6 +5,7 @@ import 'package:mymovewiseapp/workout_plan_page.dart';
 import 'package:mymovewiseapp/history_page.dart';
 import 'package:mymovewiseapp/profile_page.dart';
 import 'package:mymovewiseapp/ai_chat_page.dart';
+import 'package:mymovewiseapp/wellness_quest_page.dart';
 
 class HomePage extends StatefulWidget {
   final User user;
@@ -55,6 +56,9 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildConditionCard(),
+                  const SizedBox(height: 20),
+
                   // --- ORIGINAL SELECTION SECTION ---
                   const Text(
                     "Customize Your Session",
@@ -233,6 +237,55 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildConditionCard() {
+    final condition = widget.user.chronicCondition?.trim().isNotEmpty == true
+        ? widget.user.chronicCondition!
+        : "None";
+    final hasCondition = condition.toLowerCase() != "none";
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: hasCondition ? const Color(0xFFFFF4DD) : const Color(0xFFE8F4FD),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: hasCondition
+              ? const Color(0xFFE3B23C)
+              : Colors.blueAccent.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.health_and_safety,
+            color: hasCondition ? const Color(0xFFC38B10) : Colors.blueAccent,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Chronic Condition",
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  condition,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDrawer() {
     return Drawer(
       child: ListView(
@@ -259,6 +312,19 @@ class _HomePageState extends State<HomePage> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => AIChatPage(user: widget.user),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.spa, color: Colors.blueAccent),
+            title: const Text("Daily Comfort Quest"),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => WellnessQuestPage(user: widget.user),
                 ),
               );
             },

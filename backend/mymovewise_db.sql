@@ -49,6 +49,18 @@ INSERT INTO `tbl_exercises` (`exercise_id`, `name`, `description`, `type`, `tags
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `tbl_deleted_exercises`
+--
+
+CREATE TABLE `tbl_deleted_exercises` (
+  `deleted_id` int(11) NOT NULL,
+  `exercise_name` varchar(255) NOT NULL,
+  `deleted_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `tbl_history`
 --
 
@@ -110,6 +122,13 @@ ALTER TABLE `tbl_exercises`
 --
 -- Indexes for table `tbl_history`
 --
+ALTER TABLE `tbl_deleted_exercises`
+  ADD PRIMARY KEY (`deleted_id`),
+  ADD UNIQUE KEY `exercise_name` (`exercise_name`);
+
+--
+-- Indexes for table `tbl_history`
+--
 ALTER TABLE `tbl_history`
   ADD PRIMARY KEY (`history_id`);
 
@@ -129,6 +148,12 @@ ALTER TABLE `tbl_users`
 --
 ALTER TABLE `tbl_exercises`
   MODIFY `exercise_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `tbl_history`
+--
+ALTER TABLE `tbl_deleted_exercises`
+  MODIFY `deleted_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `tbl_history`
