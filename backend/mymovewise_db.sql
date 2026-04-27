@@ -96,6 +96,9 @@ CREATE TABLE `tbl_users` (
   `user_password` varchar(40) NOT NULL,
   `user_phone` varchar(20) NOT NULL,
   `chronic_condition` varchar(255) DEFAULT 'None',
+  `wellness_points` int(11) DEFAULT 0,
+  `comfort_streak` int(11) DEFAULT 0,
+  `last_quest_claim` date DEFAULT NULL,
   `user_role` varchar(10) DEFAULT 'user',
   `user_datereg` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -104,10 +107,10 @@ CREATE TABLE `tbl_users` (
 -- Dumping data for table `tbl_users`
 --
 
-INSERT INTO `tbl_users` (`user_id`, `user_name`, `user_email`, `user_password`, `user_phone`, `chronic_condition`, `user_role`, `user_datereg`) VALUES
-(1, 'System Admin', 'admin@gmail.com', 'f865b53623b121fd34ee5426c792e5c33af8c227', '0123456789', 'None', 'admin', '2026-01-11 14:03:06'),
-(2, 'Adam', 'adam@gmail.com', '6367c48dd193d56ea7b0baad25b19455e529f5ee', '0195875589', 'Arthritis', 'user', '2026-01-11 14:34:10'),
-(3, 'Adam2', 'adam2@gmail.com', '6367c48dd193d56ea7b0baad25b19455e529f5ee', '0195875588', 'None', 'user', '2026-01-11 17:16:41');
+INSERT INTO `tbl_users` (`user_id`, `user_name`, `user_email`, `user_password`, `user_phone`, `chronic_condition`, `wellness_points`, `comfort_streak`, `last_quest_claim`, `user_role`, `user_datereg`) VALUES
+(1, 'System Admin', 'admin@gmail.com', 'f865b53623b121fd34ee5426c792e5c33af8c227', '0123456789', 'None', 0, 0, NULL, 'admin', '2026-01-11 14:03:06'),
+(2, 'Adam', 'adam@gmail.com', '6367c48dd193d56ea7b0baad25b19455e529f5ee', '0195875589', 'Arthritis', 60, 2, '2026-01-10', 'user', '2026-01-11 14:34:10'),
+(3, 'Adam2', 'adam2@gmail.com', '6367c48dd193d56ea7b0baad25b19455e529f5ee', '0195875588', 'None', 20, 1, '2026-01-11', 'user', '2026-01-11 17:16:41');
 
 --
 -- Indexes for dumped tables

@@ -318,7 +318,7 @@ class _HomePageState extends State<HomePage> {
           ),
           ListTile(
             leading: const Icon(Icons.spa, color: Colors.blueAccent),
-            title: const Text("Daily Comfort Quest"),
+            title: const Text("Daily Reward Quest"),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(

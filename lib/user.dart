@@ -5,9 +5,12 @@ class User {
   String? password;
   String? phone;
   // MMR-F-01-03: Critical field for safety filtering logic
-  String? chronicCondition; 
+  String? chronicCondition;
   String? role; // 'user' or 'admin'
   String? datereg;
+  int wellnessPoints = 0;
+  int comfortStreak = 0;
+  String? lastQuestClaim;
 
   User({
     this.id,
@@ -18,6 +21,9 @@ class User {
     this.chronicCondition,
     this.role,
     this.datereg,
+    this.wellnessPoints = 0,
+    this.comfortStreak = 0,
+    this.lastQuestClaim,
   });
 
   // Adapted from PawPal's JSON structure style
@@ -28,9 +34,12 @@ class User {
     password = json['user_password'];
     phone = json['user_phone'];
     // Ensures the app knows if the user has a safety requirement
-    chronicCondition = json['chronic_condition']; 
+    chronicCondition = json['chronic_condition'];
     role = json['user_role'] ?? 'user';
     datereg = json['user_datereg'];
+    wellnessPoints = int.tryParse(json['wellness_points'].toString()) ?? 0;
+    comfortStreak = int.tryParse(json['comfort_streak'].toString()) ?? 0;
+    lastQuestClaim = json['last_quest_claim'];
   }
 
   Map<String, dynamic> toJson() {
@@ -43,6 +52,9 @@ class User {
     data['chronic_condition'] = chronicCondition;
     data['user_role'] = role;
     data['user_datereg'] = datereg;
+    data['wellness_points'] = wellnessPoints;
+    data['comfort_streak'] = comfortStreak;
+    data['last_quest_claim'] = lastQuestClaim;
     return data;
   }
 }

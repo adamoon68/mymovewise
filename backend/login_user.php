@@ -23,6 +23,9 @@ if ($result->num_rows > 0) {
         $userlist['chronic_condition'] = $row['chronic_condition'];
         $userlist['user_role'] = $row['user_role'];
         $userlist['user_datereg'] = $row['user_datereg'];
+        $userlist['wellness_points'] = $row['wellness_points'];
+        $userlist['comfort_streak'] = $row['comfort_streak'];
+        $userlist['last_quest_claim'] = $row['last_quest_claim'];
         
         $response = array('status' => 'success', 'data' => $userlist);
         sendJsonResponse($response);

@@ -4,7 +4,8 @@ class MyConfig {
   static const String backend = '/mymovewise/backend';
 
   // AI Configuration
-  static const String geminiApiKey = "api key";
+  static const String geminiApiKey =
+      "AQ.Ab8RN6LHgQsbYjVenc3TPDxjH69daz5mxIuhOJ55SwftIFYeHg";
   static const String systemInstruction = """
     DONT PUT ANY MOTIVATIONAL SPEECH AT THE BEGINNING, JUST GO STRAIGHT TO WORKOUT RECOMMENDATIONS. 
     You are the MoveWise AI Coach. Based on the user's input, recommend 3 exercises 

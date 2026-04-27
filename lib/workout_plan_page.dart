@@ -45,69 +45,38 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
       });
       generateWorkout();
     } catch (e) {
-      print("Error loading CSV in Workout Plan: $e");
+      debugPrint("Error loading CSV in Workout Plan: $e");
       setState(() => isLoading = false);
     }
   }
 
   void generateWorkout() {
-    List<Map<String, String>> tempPlan = [];
-
-    bool isBeginner = widget.energyLevel == "Low";
-    bool isIntermediate = widget.energyLevel == "Medium";
+    final tempPlan = <Map<String, String>>[];
 
     for (final exercise in _allExercises) {
-      final name = exercise['name'] ?? '';
-      final type = exercise['type'] ?? '';
-      final equip = exercise['equipment'] ?? '';
-      final level = exercise['level'] ?? '';
+      final name = exercise['name']?.trim() ?? '';
+      final type = exercise['type']?.trim() ?? '';
+      final equip = exercise['equipment']?.trim() ?? '';
+      final level = exercise['level']?.trim() ?? '';
+      final bodyPart = exercise['bodyPart']?.trim() ?? '';
+      final description = exercise['desc']?.trim() ?? '';
 
-      // 1. Safety Filter
-      if (widget.user.chronicCondition != "None" &&
-          widget.user.chronicCondition != null) {
-        if (type == "Plyometrics" || type == "Olympic Weightlifting") continue;
-      }
+      if (name.isEmpty) continue;
+      if (!_matchesSafety(type)) continue;
+      if (!_matchesEquipment(equip)) continue;
+      if (!_matchesEnergyLevel(level)) continue;
 
-      // 2. Equipment Filter
-      bool equipMatch = false;
-      if (widget.equipment == "None") {
-        if (equip == "Body Only" || equip == "None") equipMatch = true;
-      } else if (widget.equipment == "Dumbbells") {
-        if (equip == "Body Only" || equip == "Dumbbell") equipMatch = true;
-      } else {
-        equipMatch = true;
-      }
-
-      // 3. Level Filter
-      bool levelMatch = false;
-      if (isBeginner) {
-        if (level == "Beginner") levelMatch = true;
-      } else if (isIntermediate) {
-        if (level == "Beginner" || level == "Intermediate") levelMatch = true;
-      } else {
-        levelMatch = true;
-      }
-
-      if (equipMatch && levelMatch) {
-        tempPlan.add({
-          "name": name,
-          "details": "$type | $equip",
-          "desc": exercise['desc'] ?? '',
-          "type": type,
-          "bodyPart": exercise['bodyPart'] ?? '',
-          "level": level,
-        });
-      }
+      tempPlan.add({
+        "name": name,
+        "details": "$type | $equip",
+        "desc": description,
+        "type": type,
+        "bodyPart": bodyPart,
+        "level": level,
+      });
     }
 
-    tempPlan.sort(
-      (a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()),
-    );
-    int limit = widget.duration == "15 mins"
-        ? 4
-        : (widget.duration == "30 mins" ? 6 : 10);
-
-    final sortedPlan = tempPlan.take(limit).toList();
+    final sortedPlan = _buildBalancedPlan(tempPlan, limit: _exerciseLimit);
 
     setState(() {
       _fullGeneratedPlan = sortedPlan;
@@ -115,6 +84,156 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
       generatedPlan = sortedPlan;
       isLoading = false;
     });
+  }
+
+  bool get _hasChronicCondition {
+    final condition = widget.user.chronicCondition?.trim().toLowerCase();
+    return condition != null && condition.isNotEmpty && condition != 'none';
+  }
+
+  int get _exerciseLimit {
+    if (widget.duration == "15 mins") return 4;
+    if (widget.duration == "30 mins") return 6;
+    return 10;
+  }
+
+  bool _matchesSafety(String type) {
+    if (!_hasChronicCondition) return true;
+
+    return type != "Plyometrics" &&
+        type != "Olympic Weightlifting" &&
+        type != "Strongman";
+  }
+
+  bool _matchesEquipment(String equipment) {
+    if (widget.equipment == "None") {
+      return equipment == "Body Only" || equipment == "None";
+    }
+
+    if (widget.equipment == "Dumbbells") {
+      return equipment == "Body Only" ||
+          equipment == "None" ||
+          equipment == "Dumbbell";
+    }
+
+    return true;
+  }
+
+  bool _matchesEnergyLevel(String level) {
+    if (widget.energyLevel == "Low") {
+      return level == "Beginner";
+    }
+
+    if (widget.energyLevel == "Medium") {
+      return level == "Beginner" || level == "Intermediate";
+    }
+
+    return true;
+  }
+
+  List<Map<String, String>> _buildBalancedPlan(
+    List<Map<String, String>> exercises, {
+    required int limit,
+  }) {
+    if (exercises.isEmpty || limit <= 0) return [];
+
+    final grouped = <String, List<Map<String, String>>>{};
+    for (final exercise in exercises) {
+      final bodyPart = exercise['bodyPart']?.trim().isNotEmpty == true
+          ? exercise['bodyPart']!.trim()
+          : 'General';
+      grouped.putIfAbsent(bodyPart, () => []).add(exercise);
+    }
+
+    grouped.forEach((_, group) {
+      group.sort((a, b) {
+        final scoreCompare = _exerciseScore(b).compareTo(_exerciseScore(a));
+        if (scoreCompare != 0) return scoreCompare;
+        return a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase());
+      });
+    });
+
+    final bodyParts = grouped.keys.toList()..sort();
+    final rotation = _deterministicHash(
+      "${widget.energyLevel}|${widget.duration}|${widget.equipment}|${widget.user.chronicCondition ?? 'none'}",
+    );
+    final orderedBodyParts = [
+      ...bodyParts.skip(rotation % bodyParts.length),
+      ...bodyParts.take(rotation % bodyParts.length),
+    ];
+
+    final selected = <Map<String, String>>[];
+
+    while (selected.length < limit) {
+      var addedInPass = false;
+
+      for (final bodyPart in orderedBodyParts) {
+        final group = grouped[bodyPart]!;
+        if (group.isEmpty) continue;
+
+        selected.add(group.removeAt(0));
+        addedInPass = true;
+
+        if (selected.length >= limit) break;
+      }
+
+      if (!addedInPass) break;
+    }
+
+    return selected;
+  }
+
+  int _exerciseScore(Map<String, String> exercise) {
+    final level = exercise['level'] ?? '';
+    final type = exercise['type'] ?? '';
+    final details = exercise['details'] ?? '';
+    final hasDescription = (exercise['desc'] ?? '').trim().isNotEmpty;
+
+    var score = hasDescription ? 20 : 0;
+
+    switch (widget.energyLevel) {
+      case "Low":
+        if (level == "Beginner") score += 50;
+        if (details.contains("Body Only") || details.contains("None")) {
+          score += 15;
+        }
+        if (type == "Stretching" || type == "Cardio") score += 15;
+        break;
+      case "Medium":
+        if (level == "Intermediate") score += 45;
+        if (level == "Beginner") score += 30;
+        if (type == "Strength") score += 12;
+        if (details.contains("Dumbbell")) score += 8;
+        break;
+      case "High":
+        if (level == "Expert") score += 60;
+        if (level == "Intermediate") score += 45;
+        if (level == "Beginner") score += 10;
+        if (!_hasChronicCondition &&
+            (type == "Plyometrics" ||
+                type == "Powerlifting" ||
+                type == "Olympic Weightlifting" ||
+                type == "Strongman")) {
+          score += 20;
+        }
+        if (!details.contains("Body Only")) score += 10;
+        break;
+    }
+
+    if (_hasChronicCondition &&
+        (type == "Stretching" || type == "Cardio" || type == "Strength")) {
+      score += 10;
+    }
+
+    return score;
+  }
+
+  int _deterministicHash(String input) {
+    var hash = 0;
+    for (final codeUnit in input.codeUnits) {
+      hash = (hash * 31 + codeUnit) & 0x7fffffff;
+    }
+    return hash;
   }
 
   void _filterGeneratedPlanByLetter(String letter) {
