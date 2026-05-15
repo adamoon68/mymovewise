@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:mymovewiseapp/medical_conditions.dart';
 import 'package:mymovewiseapp/myconfig.dart';
 import 'package:mymovewiseapp/loginpage.dart';
 
@@ -16,7 +17,7 @@ class _RegisterPageState extends State<RegisterPage> {
   TextEditingController nameController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
   TextEditingController phoneController = TextEditingController();
-  TextEditingController conditionController = TextEditingController();
+  String _selectedCondition = MedicalConditionCatalog.options.first.name;
 
   @override
   Widget build(BuildContext context) {
@@ -42,9 +43,16 @@ class _RegisterPageState extends State<RegisterPage> {
             child: Column(
               children: [
                 // Header
-                const Icon(Icons.person_add_outlined, size: 60, color: Colors.blueAccent),
+                const Icon(
+                  Icons.person_add_outlined,
+                  size: 60,
+                  color: Colors.blueAccent,
+                ),
                 const SizedBox(height: 10),
-                const Text("Join MoveWise", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const Text(
+                  "Join MoveWise",
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 30),
 
                 // Form Container
@@ -55,7 +63,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
+                        color: Colors.grey.withValues(alpha: 0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
@@ -63,15 +71,33 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   child: Column(
                     children: [
-                      _buildTextField(nameController, "Full Name", Icons.person),
+                      _buildTextField(
+                        nameController,
+                        "Full Name",
+                        Icons.person,
+                      ),
                       const SizedBox(height: 15),
-                      _buildTextField(emailController, "Email Address", Icons.email),
+                      _buildTextField(
+                        emailController,
+                        "Email Address",
+                        Icons.email,
+                      ),
                       const SizedBox(height: 15),
-                      _buildTextField(phoneController, "Phone Number", Icons.phone, inputType: TextInputType.phone),
+                      _buildTextField(
+                        phoneController,
+                        "Phone Number",
+                        Icons.phone,
+                        inputType: TextInputType.phone,
+                      ),
                       const SizedBox(height: 15),
-                      _buildTextField(conditionController, "Chronic Condition (Optional)", Icons.health_and_safety),
+                      _buildConditionDropdown(),
                       const SizedBox(height: 15),
-                      _buildTextField(passwordController, "Password", Icons.lock, isPassword: true),
+                      _buildTextField(
+                        passwordController,
+                        "Password",
+                        Icons.lock,
+                        isPassword: true,
+                      ),
                       const SizedBox(height: 25),
 
                       SizedBox(
@@ -82,10 +108,15 @@ class _RegisterPageState extends State<RegisterPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blueAccent,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             elevation: 5,
                           ),
-                          child: const Text("REGISTER", style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text(
+                            "REGISTER",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                     ],
@@ -121,37 +152,109 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+          borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
         ),
       ),
     );
   }
 
-  void registerUser() {
-    if (nameController.text.isEmpty || emailController.text.isEmpty || passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fill all fields")));
+  Widget _buildConditionDropdown() {
+    final selected = MedicalConditionCatalog.findByName(_selectedCondition);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InputDecorator(
+          decoration: InputDecoration(
+            labelText: "Medical Condition",
+            prefixIcon: const Icon(
+              Icons.health_and_safety,
+              color: Colors.blueAccent,
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+            ),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedCondition,
+              isExpanded: true,
+              items: MedicalConditionCatalog.options.map((condition) {
+                return DropdownMenuItem<String>(
+                  value: condition.name,
+                  child: Text(condition.name),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _selectedCondition = value);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFB8D7FF)),
+          ),
+          child: Text(
+            selected.description,
+            style: const TextStyle(height: 1.45, color: Color(0xFF184A84)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> registerUser() async {
+    if (nameController.text.isEmpty ||
+        emailController.text.isEmpty ||
+        passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Fill all fields")));
       return;
     }
 
-    http.post(
+    final response = await http.post(
       Uri.parse("${MyConfig.baseUrl}/mymovewise/backend/register_user.php"),
       body: {
         "name": nameController.text,
         "email": emailController.text,
         "phone": phoneController.text,
         "password": passwordController.text,
-        "chronic_condition": conditionController.text.isEmpty ? "None" : conditionController.text,
+        "chronic_condition": _selectedCondition,
       },
-    ).then((response) {
-      if (response.statusCode == 200) {
-        var res = jsonDecode(response.body);
-        if (res['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Registration Success")));
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage()));
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Registration Failed")));
-        }
+    );
+
+    if (!mounted) return;
+
+    if (response.statusCode == 200) {
+      var res = jsonDecode(response.body);
+      if (res['status'] == 'success') {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Registration Success")));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Registration Failed")));
       }
-    });
+    }
   }
 }

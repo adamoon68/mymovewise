@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mymovewiseapp/exercise_data_service.dart';
+import 'package:mymovewiseapp/medical_conditions.dart';
 import 'package:mymovewiseapp/user.dart';
 import 'package:mymovewiseapp/exercise_detail_page.dart';
 
@@ -87,8 +88,9 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
   }
 
   bool get _hasChronicCondition {
-    final condition = widget.user.chronicCondition?.trim().toLowerCase();
-    return condition != null && condition.isNotEmpty && condition != 'none';
+    return !MedicalConditionCatalog.findByName(
+      widget.user.chronicCondition,
+    ).isNone;
   }
 
   int get _exerciseLimit {
@@ -100,9 +102,12 @@ class _WorkoutPlanPageState extends State<WorkoutPlanPage> {
   bool _matchesSafety(String type) {
     if (!_hasChronicCondition) return true;
 
-    return type != "Plyometrics" &&
-        type != "Olympic Weightlifting" &&
-        type != "Strongman";
+    final condition = MedicalConditionCatalog.findByName(
+      widget.user.chronicCondition,
+    );
+    return !condition.avoidTypes.any(
+      (item) => item.toLowerCase() == type.toLowerCase(),
+    );
   }
 
   bool _matchesEquipment(String equipment) {

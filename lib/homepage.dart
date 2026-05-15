@@ -5,6 +5,7 @@ import 'package:mymovewiseapp/workout_plan_page.dart';
 import 'package:mymovewiseapp/history_page.dart';
 import 'package:mymovewiseapp/profile_page.dart';
 import 'package:mymovewiseapp/ai_chat_page.dart';
+import 'package:mymovewiseapp/workout_search_page.dart';
 import 'package:mymovewiseapp/wellness_quest_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -304,14 +305,27 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.smart_toy, color: Colors.blueAccent),
-            title: const Text("Chat with MoveWise AI"),
+            leading: const Icon(Icons.auto_awesome, color: Colors.blueAccent),
+            title: const Text("Workout Assistant"),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => AIChatPage(user: widget.user),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.search, color: Colors.blueAccent),
+            title: const Text("Search Workouts"),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => WorkoutSearchPage(user: widget.user),
                 ),
               );
             },

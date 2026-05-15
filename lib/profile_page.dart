@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:mymovewiseapp/medical_conditions.dart';
 import 'package:mymovewiseapp/user.dart';
 import 'package:mymovewiseapp/myconfig.dart';
 
@@ -15,8 +16,8 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late TextEditingController nameController;
   late TextEditingController phoneController;
-  late TextEditingController conditionController;
   late TextEditingController passwordController;
+  late String selectedCondition;
   bool isEditing = false;
 
   @override
@@ -24,39 +25,49 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     nameController = TextEditingController(text: widget.user.name);
     phoneController = TextEditingController(text: widget.user.phone);
-    conditionController = TextEditingController(text: widget.user.chronicCondition);
-    passwordController = TextEditingController(); // Empty default (don't show old pass)
+    selectedCondition = MedicalConditionCatalog.findByName(
+      widget.user.chronicCondition,
+    ).name;
+    passwordController =
+        TextEditingController(); // Empty default (don't show old pass)
   }
 
-  void saveProfile() {
-    http.post(
+  Future<void> saveProfile() async {
+    final response = await http.post(
       Uri.parse("${MyConfig.baseUrl}/mymovewise/backend/update_profile.php"),
       body: {
         "user_id": widget.user.id,
         "name": nameController.text,
         "phone": phoneController.text,
-        "chronic_condition": conditionController.text,
+        "chronic_condition": selectedCondition,
         "password": passwordController.text, // Sends empty if not changed
       },
-    ).then((response) {
-      if (response.statusCode == 200) {
-        var res = jsonDecode(response.body);
-        if (res['status'] == 'success') {
-          setState(() {
-            // Update local user object so changes reflect immediately
-            widget.user.name = nameController.text;
-            widget.user.phone = phoneController.text;
-            widget.user.chronicCondition = conditionController.text;
-            isEditing = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Profile Updated Successfully!"), backgroundColor: Colors.green),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Update Failed")));
-        }
+    );
+
+    if (!mounted) return;
+
+    if (response.statusCode == 200) {
+      var res = jsonDecode(response.body);
+      if (res['status'] == 'success') {
+        setState(() {
+          // Update local user object so changes reflect immediately
+          widget.user.name = nameController.text;
+          widget.user.phone = phoneController.text;
+          widget.user.chronicCondition = selectedCondition;
+          isEditing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Profile Updated Successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Update Failed")));
       }
-    });
+    }
   }
 
   @override
@@ -77,12 +88,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   // Cancel edits: revert to original
                   nameController.text = widget.user.name ?? "";
                   phoneController.text = widget.user.phone ?? "";
-                  conditionController.text = widget.user.chronicCondition ?? "None";
+                  selectedCondition = MedicalConditionCatalog.findByName(
+                    widget.user.chronicCondition,
+                  ).name;
                 }
                 isEditing = !isEditing;
               });
             },
-          )
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -104,12 +117,20 @@ class _ProfilePageState extends State<ProfilePage> {
                   const CircleAvatar(
                     radius: 50,
                     backgroundColor: Colors.white,
-                    child: Icon(Icons.person, size: 60, color: Colors.blueAccent),
+                    child: Icon(
+                      Icons.person,
+                      size: 60,
+                      color: Colors.blueAccent,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     widget.user.name ?? "User",
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                   Text(
                     widget.user.email ?? "",
@@ -130,7 +151,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   borderRadius: BorderRadius.circular(15),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
+                      color: Colors.grey.withValues(alpha: 0.1),
                       blurRadius: 10,
                       offset: const Offset(0, 5),
                     ),
@@ -138,11 +159,21 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 child: Column(
                   children: [
-                    _buildField("Full Name", nameController, Icons.person, isEditing),
+                    _buildField(
+                      "Full Name",
+                      nameController,
+                      Icons.person,
+                      isEditing,
+                    ),
                     const Divider(),
-                    _buildField("Phone", phoneController, Icons.phone, isEditing),
+                    _buildField(
+                      "Phone",
+                      phoneController,
+                      Icons.phone,
+                      isEditing,
+                    ),
                     const Divider(),
-                    
+
                     // Special Section for Condition
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -151,41 +182,70 @@ class _ProfilePageState extends State<ProfilePage> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.health_and_safety, color: Colors.blueAccent, size: 20),
+                              const Icon(
+                                Icons.health_and_safety,
+                                color: Colors.blueAccent,
+                                size: 20,
+                              ),
                               const SizedBox(width: 10),
-                              Text("Chronic Condition", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                              Text(
+                                "Chronic Condition",
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 5),
                           isEditing
-                              ? TextField(
-                                  controller: conditionController,
-                                  decoration: const InputDecoration(
-                                    hintText: "e.g., Asthma, Back Pain, None",
-                                    border: OutlineInputBorder(),
-                                    isDense: true,
-                                  ),
-                                )
+                              ? _buildConditionDropdown()
                               : Text(
                                   widget.user.chronicCondition ?? "None",
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                           const SizedBox(height: 5),
-                          if (isEditing)
-                             const Text(
-                               "Note: Setting a condition activates safety filters in workouts.",
-                               style: TextStyle(fontSize: 11, color: Colors.orange),
-                             ),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFB8D7FF),
+                              ),
+                            ),
+                            child: Text(
+                              MedicalConditionCatalog.findByName(
+                                isEditing
+                                    ? selectedCondition
+                                    : widget.user.chronicCondition,
+                              ).description,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.45,
+                                color: Color(0xFF184A84),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
                     const Divider(),
 
                     // Password Field (Only show input when editing)
-                    if (isEditing) 
+                    if (isEditing)
                       Column(
                         children: [
-                          _buildField("New Password (Optional)", passwordController, Icons.lock, true),
+                          _buildField(
+                            "New Password (Optional)",
+                            passwordController,
+                            Icons.lock,
+                            true,
+                          ),
                           const SizedBox(height: 20),
                         ],
                       ),
@@ -214,7 +274,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildField(String label, TextEditingController controller, IconData icon, bool enabled) {
+  Widget _buildField(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+    bool enabled,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
@@ -224,7 +289,10 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               Icon(icon, color: Colors.blueAccent, size: 20),
               const SizedBox(width: 10),
-              Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+              Text(
+                label,
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
             ],
           ),
           const SizedBox(height: 5),
@@ -240,11 +308,34 @@ class _ProfilePageState extends State<ProfilePage> {
                   padding: const EdgeInsets.only(left: 30),
                   child: Text(
                     controller.text.isEmpty ? "-" : controller.text,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
         ],
       ),
+    );
+  }
+
+  Widget _buildConditionDropdown() {
+    return DropdownButtonFormField<String>(
+      initialValue: selectedCondition,
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        isDense: true,
+      ),
+      items: MedicalConditionCatalog.options.map((condition) {
+        return DropdownMenuItem<String>(
+          value: condition.name,
+          child: Text(condition.name),
+        );
+      }).toList(),
+      onChanged: (value) {
+        if (value == null) return;
+        setState(() => selectedCondition = value);
+      },
     );
   }
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:mymovewiseapp/ai_service.dart';
-import 'package:mymovewiseapp/exercise_data_service.dart';
 import 'package:mymovewiseapp/exercise_detail_page.dart';
+import 'package:mymovewiseapp/medical_conditions.dart';
 import 'package:mymovewiseapp/user.dart';
+import 'package:mymovewiseapp/workout_recommender_service.dart';
 
 class AIChatPage extends StatefulWidget {
   final User user;
@@ -14,117 +14,47 @@ class AIChatPage extends StatefulWidget {
 }
 
 class _AIChatPageState extends State<AIChatPage> {
-  final AIService _aiService = AIService();
-  final TextEditingController _chatController = TextEditingController();
-  final TextEditingController _searchController = TextEditingController();
-
-  final List<_ChatMessage> _messages = [];
-  final List<Map<String, String>> _allExercises = [];
-  List<Map<String, String>> _filteredExercises = [];
-
-  bool _isAiLoading = false;
-  bool _isSearchLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _messages.add(
-      const _ChatMessage(
-        sender: _MessageSender.ai,
-        text:
-            "Hi! I can help with workout recommendations, recovery-friendly ideas, and exercise suggestions. Ask me anything.",
-      ),
-    );
-    _loadExercises();
-  }
+  final TextEditingController _promptController = TextEditingController();
+  WorkoutRecommendationResult? _result;
+  bool _isLoading = false;
 
   @override
   void dispose() {
-    _chatController.dispose();
-    _searchController.dispose();
+    _promptController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadExercises() async {
-    try {
-      final exercises = await ExerciseDataService.loadExercises(
-        sortAlphabetically: true,
-      );
+  Future<void> _recommendWorkouts() async {
+    final prompt = _promptController.text.trim();
+    if (prompt.isEmpty || _isLoading) return;
 
-      if (!mounted) return;
-      setState(() {
-        _allExercises
-          ..clear()
-          ..addAll(exercises);
-        _filteredExercises = List<Map<String, String>>.from(exercises.take(12));
-        _isSearchLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isSearchLoading = false;
-      });
-    }
-  }
+    setState(() => _isLoading = true);
 
-  Future<void> _sendMessage() async {
-    final prompt = _chatController.text.trim();
-    if (prompt.isEmpty || _isAiLoading) return;
-
-    setState(() {
-      _messages.add(_ChatMessage(sender: _MessageSender.user, text: prompt));
-      _isAiLoading = true;
-    });
-    _chatController.clear();
-
-    final result = await _aiService.getRecommendation(prompt);
+    final result = await WorkoutRecommenderService.recommend(
+      user: widget.user,
+      prompt: prompt,
+    );
 
     if (!mounted) return;
     setState(() {
-      _messages.add(_ChatMessage(sender: _MessageSender.ai, text: result));
-      _isAiLoading = false;
-    });
-  }
-
-  void _filterExercises(String query) {
-    final trimmed = query.trim().toLowerCase();
-    if (trimmed.isEmpty) {
-      setState(() {
-        _filteredExercises = List<Map<String, String>>.from(
-          _allExercises.take(12),
-        );
-      });
-      return;
-    }
-
-    final matches = _allExercises
-        .where((exercise) {
-          final haystack = [
-            exercise["name"],
-            exercise["type"],
-            exercise["bodyPart"],
-            exercise["equipment"],
-            exercise["level"],
-          ].whereType<String>().join(" ").toLowerCase();
-          return haystack.contains(trimmed);
-        })
-        .take(20)
-        .toList();
-
-    setState(() {
-      _filteredExercises = matches;
+      _result = result;
+      _isLoading = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final firstName = widget.user.name?.split(' ').first ?? 'User';
+    final condition = MedicalConditionCatalog.findByName(
+      widget.user.chronicCondition,
+    );
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text("Chat with MoveWise AI"),
+        title: const Text('Workout Assistant'),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
-        elevation: 0,
       ),
       body: Column(
         children: [
@@ -142,45 +72,138 @@ class _AIChatPageState extends State<AIChatPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Ask for workouts, recovery tips, or a quick routine, ${widget.user.name?.split(' ').first ?? 'User'}.",
+                  'Describe the workout you want, $firstName.',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  "You can also search exercises below and open the workout details page directly.",
-                  style: TextStyle(color: Colors.white70),
+                Text(
+                  condition.isNone
+                      ? 'MoveWise will match exercises from the dataset using rule-based filtering.'
+                      : 'Your ${condition.name.toLowerCase()} safety filter is active before results are shown.',
+                  style: const TextStyle(color: Colors.white70, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _promptController,
+                  minLines: 2,
+                  maxLines: 4,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _recommendWorkouts(),
+                  decoration: InputDecoration(
+                    hintText:
+                        'Example: I need a gentle 20 minute home workout for my back and core.',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _buildPromptChip(
+                      'Gentle home workout',
+                      'Need a gentle 20 minute home workout with no jumping.',
+                    ),
+                    _buildPromptChip(
+                      'Beginner upper body',
+                      'Give me a beginner upper body strength workout with dumbbells.',
+                    ),
+                    _buildPromptChip(
+                      'Stretch and recovery',
+                      'Suggest a low impact recovery and stretching routine for sore legs.',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: _recommendWorkouts,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF103D77),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: _isLoading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.auto_awesome),
+                    label: Text(
+                      _isLoading
+                          ? 'Matching workouts...'
+                          : 'Find Safe Workouts',
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildChatCard(),
-                  const SizedBox(height: 20),
-                  _buildSearchCard(),
-                ],
-              ),
-            ),
+            child: _result == null
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Enter a natural language prompt to get matched exercises from the workout dataset.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 16, color: Colors.black54),
+                      ),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      _buildSummaryCard(_result!, condition),
+                      const SizedBox(height: 18),
+                      ..._result!.exercises.map(_buildExerciseCard),
+                    ],
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildChatCard() {
+  Widget _buildPromptChip(String label, String prompt) {
+    return ActionChip(
+      label: Text(label),
+      backgroundColor: Colors.white.withValues(alpha: 0.95),
+      side: BorderSide.none,
+      onPressed: () {
+        setState(() {
+          _promptController.text = prompt;
+        });
+      },
+    );
+  }
+
+  Widget _buildSummaryCard(
+    WorkoutRecommendationResult result,
+    MedicalConditionOption condition,
+  ) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -192,237 +215,102 @@ class _AIChatPageState extends State<AIChatPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.smart_toy, color: Colors.blueAccent),
-              SizedBox(width: 10),
-              Text(
-                "MoveWise AI Chat",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            constraints: const BoxConstraints(minHeight: 180, maxHeight: 320),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: _messages.length + (_isAiLoading ? 1 : 0),
-              separatorBuilder: (_, index) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                if (_isAiLoading && index == _messages.length) {
-                  return _buildTypingBubble();
-                }
-                return _buildMessageBubble(_messages[index]);
-              },
-            ),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _chatController,
-            minLines: 1,
-            maxLines: 4,
-            textInputAction: TextInputAction.send,
-            onSubmitted: (_) => _sendMessage(),
-            decoration: InputDecoration(
-              hintText:
-                  "Ask for a beginner leg day, home workout, recovery plan...",
-              filled: true,
-              fillColor: Colors.grey[50],
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-              suffixIcon: IconButton(
-                onPressed: _sendMessage,
-                icon: const Icon(Icons.send, color: Colors.blueAccent),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchCard() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.search, color: Colors.blueAccent),
-              SizedBox(width: 10),
-              Text(
-                "Search Workouts",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
+          const Text(
+            'Matched Results',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          const Text(
-            "Find exercises by name, body part, type, equipment, or level.",
-            style: TextStyle(color: Colors.black54),
+          Text(
+            result.summary,
+            style: const TextStyle(fontSize: 15, height: 1.45),
           ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _searchController,
-            onChanged: _filterExercises,
-            decoration: InputDecoration(
-              hintText: "Search workouts...",
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: Colors.grey[50],
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: result.detectedNeeds.isEmpty
+                ? [_buildInfoChip('Balanced'), _buildInfoChip(condition.name)]
+                : result.detectedNeeds.map(_buildInfoChip).toList(),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8E8),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE7C76D)),
+            ),
+            child: Text(
+              result.safetyNote,
+              style: const TextStyle(color: Color(0xFF6A5600), height: 1.45),
             ),
           ),
-          const SizedBox(height: 14),
-          if (_isSearchLoading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else if (_filteredExercises.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Text(
-                "No workouts matched your search yet.",
-                style: TextStyle(color: Colors.black54),
-              ),
-            )
-          else
-            ListView.builder(
-              itemCount: _filteredExercises.length,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemBuilder: (context, index) {
-                final exercise = _filteredExercises[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.blueAccent.withValues(alpha: 0.1),
-                      child: const Icon(
-                        Icons.fitness_center,
-                        color: Colors.blueAccent,
-                      ),
-                    ),
-                    title: Text(
-                      exercise["name"] ?? "Workout",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _buildInfoChip(exercise["type"] ?? "General"),
-                          _buildInfoChip(exercise["bodyPart"] ?? "Full Body"),
-                          _buildInfoChip(exercise["level"] ?? "All Levels"),
-                        ],
-                      ),
-                    ),
-                    trailing: const Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: Colors.grey,
-                    ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ExerciseDetailPage(
-                            exercise: exercise,
-                            user: widget.user,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildMessageBubble(_ChatMessage message) {
-    final isUser = message.sender == _MessageSender.user;
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 280),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: isUser ? Colors.blueAccent : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: isUser ? null : Border.all(color: Colors.grey.shade200),
+  Widget _buildExerciseCard(Map<String, String> exercise) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 14,
         ),
-        child: Text(
-          message.text,
-          style: TextStyle(
-            color: isUser ? Colors.white : Colors.black87,
-            height: 1.4,
+        title: Text(
+          exercise['name'] ?? 'Workout',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildInfoChip(exercise['type'] ?? 'General'),
+                  _buildInfoChip(exercise['bodyPart'] ?? 'Full Body'),
+                  _buildInfoChip(exercise['level'] ?? 'All Levels'),
+                  _buildInfoChip(exercise['equipment'] ?? 'Mixed'),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                exercise['why'] ?? 'Matched for your prompt.',
+                style: const TextStyle(color: Colors.black54, height: 1.4),
+              ),
+            ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTypingBubble() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.grey,
         ),
-        child: const SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  ExerciseDetailPage(exercise: exercise, user: widget.user),
+            ),
+          );
+        },
       ),
     );
   }
@@ -444,13 +332,4 @@ class _AIChatPageState extends State<AIChatPage> {
       ),
     );
   }
-}
-
-enum _MessageSender { user, ai }
-
-class _ChatMessage {
-  final _MessageSender sender;
-  final String text;
-
-  const _ChatMessage({required this.sender, required this.text});
 }
